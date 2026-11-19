@@ -85,7 +85,7 @@ function playIntro() {
   });
 }
 
-const keyLight = new THREE.DirectionalLight(0xffe1bf, 2.2);
+const keyLight = new THREE.DirectionalLight(0xffead5);
 keyLight.position.set(-3, 5, 4);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(1024, 1024);
@@ -95,7 +95,10 @@ keyLight.shadow.normalBias = 0.025;
 keyLight.shadow.radius = 4;
 keyLight.shadow.intensity = 0.65;
 const fill = new THREE.HemisphereLight(0xffecd4, 0x594338, 0.9);
-scene.add(keyLight, fill);
+const rimLight = new THREE.SpotLight(0xffbc79, 54, 9, 0.24, 0.85);
+rimLight.position.set(4.1, 2.55, 0.72);
+rimLight.target.position.set(0, 0.88, 0);
+scene.add(keyLight, fill, rimLight, rimLight.target);
 
 const textureLoader = new THREE.TextureLoader();
 function colorTexture(name, repeatX, repeatY) {
@@ -331,7 +334,7 @@ function bindSlider(id, apply, format = (value) => value.toFixed(2).replace('.',
   update();
 }
 
-bindSlider('light', (value) => { keyLight.intensity = value; });
+bindSlider('light', (value) => { keyLight.intensity = value * 0.72; });
 bindSlider('reflection', (value) => { scene.environmentIntensity = value; });
 bindSlider('roughness', (value) => { obsidian.roughness = value; });
 let swordSpeed = 1;
