@@ -14,6 +14,13 @@ body { margin: 0; }
   isolation: isolate;
 }
 
+#stage {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 canvas {
   display: block;
   touch-action: none;
@@ -34,6 +41,20 @@ h1 {
   margin: 0;
   font: normal clamp(2.5rem, 6vw, 4.75rem)/1 Georgia, serif;
 }
+
+.heading h1 {
+  font-size: clamp(2rem, 4.9vw, 4.35rem);
+  letter-spacing: 0.075em;
+}
+
+.settings-toggle {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 1;
+}
+
+.settings[hidden] { display: none; }
 
 .heading p {
   margin: 0.75rem 0 0;
@@ -58,7 +79,7 @@ h1 {
 
 .settings {
   right: 1.5rem;
-  bottom: 1.5rem;
+  bottom: 4.25rem;
   width: min(17rem, calc(100% - 5rem));
   padding: 1rem 1.2rem;
   box-shadow: 0 8px 35px #160d0960;
@@ -154,5 +175,46 @@ button:hover { background: #533722; }
 @media (max-width: 600px) {
   .heading { top: 1rem; left: 1rem; }
   .heading p { font-size: 0.86rem; }
-  .settings { right: 1rem; bottom: 1rem; }
+  #viewport {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #stage { flex: 1 1 0; }
+
+  .settings {
+    position: static;
+    flex: none;
+    width: auto;
+    max-height: 42dvh;
+    overflow: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem 1rem;
+    padding: 0.85rem 1rem max(0.85rem, env(safe-area-inset-bottom));
+    border-radius: 0;
+  }
+
+  .settings-header {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr auto;
+  }
+
+  .settings-header button { grid-column: 2; }
+  .setting { margin-top: 0; }
+  .sword-speed {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 0.3rem;
+  }
+  .settings-toggle {
+    right: 1rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    min-height: 2.75rem;
+  }
+  .swatches button {
+    width: 2rem;
+    height: 2rem;
+  }
 }

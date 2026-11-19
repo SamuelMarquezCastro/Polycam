@@ -7,12 +7,15 @@
   </head>
   <body>
     <main id="viewport">
-      <header class="heading">
-        <h1>FARIS AL ARAB</h1>
-        <p>Sleep om te draaien · Scroll of knijp om te zoomen</p>
-      </header>
-      <p id="status" role="status">De scène wordt geladen…</p>
-      <section class="settings" aria-labelledby="settings-title">
+      <div id="stage">
+        <header class="heading">
+          <h1>FARIS AL ARAB</h1>
+          <p>Sleep om te draaien · Scroll of knijp om te zoomen</p>
+        </header>
+        <p id="status" role="status">De scène wordt geladen…</p>
+        <button class="settings-toggle" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Instellingen</button>
+      </div>
+      <section class="settings" id="settings-panel" aria-labelledby="settings-title" hidden>
         <div class="settings-header">
           <h2 id="settings-title">Scène</h2>
           <button id="reset" type="button">Reset camera</button>

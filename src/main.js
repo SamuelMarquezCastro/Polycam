@@ -5,13 +5,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import './style.css';
 
-const viewport = document.querySelector('#viewport');
+const viewport = document.querySelector('#stage');
 const status = document.querySelector('#status');
 const asset = (path) => import.meta.env.BASE_URL + path;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x251a15);
-scene.backgroundIntensity = 0.38;
 scene.environmentIntensity = 0.95;
 
 const camera = new THREE.PerspectiveCamera(39, 1, 0.1, 40);
@@ -244,13 +243,74 @@ bindSlider('roughness', (value) => { obsidian.roughness = value; });
 let swordSpeed = 1;
 bindSlider('sword-speed', (value) => { swordSpeed = value; });
 
+const settingsToggle = document.querySelector('#settings-toggle');
+const settingsPanel = document.querySelector('#settings-panel');
+function setSettingsOpen(open) {
+  settingsPanel.hidden = !open;
+  settingsToggle.setAttribute('aria-expanded', String(open));
+}
+settingsToggle.addEventListener('click', () => setSettingsOpen(settingsPanel.hidden));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !settingsPanel.hidden) {
+    setSettingsOpen(false);
+    settingsToggle.focus();
+  }
+});
+
 async function loadEnvironment() {
   const texture = await new HDRLoader().loadAsync(
     asset('textures/HDR/parfumatelier_gouden_uur_360_4096x2048.hdr'),
   );
   texture.mapping = THREE.EquirectangularReflectionMapping;
-  scene.background = texture;
+  texture.wrapS = THREE.RepeatWrapping;
   scene.environment = texture;
+
+  // Sample the HDR directly for the backdrop at its original resolution.
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(25, 32, 16), new THREE.ShaderMaterial({
+    uniforms: { panorama: { value: texture } },
+    side: THREE.BackSide,
+    depthWrite: false,
+    vertexShader: `
+      varying vec3 vSkyDirection;
+      void main() {
+        vSkyDirection = (modelMatrix * vec4(position, 1.0)).xyz - cameraPosition;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      #include <common>
+      uniform sampler2D panorama;
+      varying vec3 vSkyDirection;
+      void main() {
+        vec2 uv = equirectUv(normalize(vSkyDirection));
+        gl_FragColor = vec4(texture2D(panorama, uv).rgb * 0.38, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  }));
+  sky.renderOrder = -1;
+  scene.add(sky);
+}
+
+function groupPerfumeSurfaces(geometry) {
+  const { index } = geometry;
+  const position = geometry.getAttribute('position');
+  const label = [];
+  const accents = [];
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const b = index.getX(i + 1);
+    const c = index.getX(i + 2);
+    const group = Math.min(position.getY(a), position.getY(b), position.getY(c)) < -0.095
+      ? label
+      : accents;
+    group.push(a, b, c);
+  }
+  geometry.setIndex(new THREE.BufferAttribute(new index.array.constructor(label.concat(accents)), 1));
+  geometry.clearGroups();
+  geometry.addGroup(0, label.length, 0);
+  geometry.addGroup(label.length, accents.length, 1);
 }
 
 async function loadPerfume() {
@@ -297,6 +357,8 @@ async function loadPerfume() {
       object.material.emissiveMap = object.material.map;
       object.material.emissiveIntensity = 0.42;
       originalMaterials.set(object, object.material);
+      groupPerfumeSurfaces(object.geometry);
+      object.material = [object.material, object.material];
     }
   });
   display.add(perfume);
@@ -309,7 +371,7 @@ async function loadPerfume() {
     swatch.disabled = false;
     swatch.addEventListener('click', () => {
       for (const [mesh, original] of originalMaterials) {
-        mesh.material = alternatives[finish] ?? original;
+        mesh.material = [original, alternatives[finish] ?? original];
       }
       for (const option of swatches) {
         option.setAttribute('aria-pressed', String(option === swatch));
@@ -351,7 +413,7 @@ renderer.setAnimationLoop((time) => {
   const delta = Math.min((time - (previousFrame ?? time)) / 1000, 0.1);
   previousFrame = time;
   seconds += delta * swordSpeed;
-  swordOrbit.rotation.y = -0.55 + seconds * 0.38;
+  swordOrbit.rotation.y = 1.44 + Math.sin(seconds * 0.54 + 0.8) * 1.65;
   swordFloat.position.y = 0.67 + Math.sin(seconds * 1.4) * 0.14;
   swordFloat.rotation.x = Math.sin(seconds * 0.95) * 0.42;
   swordFloat.rotation.y = Math.sin(seconds * 0.7) * 0.25;
