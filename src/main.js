@@ -8,6 +8,8 @@ import './style.css';
 const viewport = document.querySelector('#stage');
 const status = document.querySelector('#status');
 const asset = (path) => import.meta.env.BASE_URL + path;
+const backdropIntensity = 0.38;
+const panorama = { value: null };
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x251a15);
@@ -178,15 +180,20 @@ display.add(platformEdge);
 const sand = new THREE.MeshStandardMaterial({
   color: 0x87562f,
   roughness: 0.93,
-  transparent: true,
-  depthWrite: false,
 });
 sand.onBeforeCompile = (shader) => {
-  shader.vertexShader = 'varying vec2 vSandPosition;\n' + shader.vertexShader.replace(
+  shader.uniforms.sandPanorama = panorama;
+  shader.uniforms.sandBackdropIntensity = { value: backdropIntensity };
+  shader.vertexShader = 'varying vec2 vSandPosition;\nvarying vec3 vSandDirection;\n' + shader.vertexShader.replace(
     '#include <begin_vertex>',
-    '#include <begin_vertex>\nvSandPosition = position.xy;',
+    '#include <begin_vertex>\nvSandPosition = position.xy;\nvSandDirection = (modelMatrix * vec4(position, 1.0)).xyz - cameraPosition;',
   );
-  shader.fragmentShader = 'varying vec2 vSandPosition;\n' + shader.fragmentShader.replace(
+  shader.fragmentShader = `
+    varying vec2 vSandPosition;
+    varying vec3 vSandDirection;
+    uniform sampler2D sandPanorama;
+    uniform float sandBackdropIntensity;
+  ` + shader.fragmentShader.replace(
     '#include <color_fragment>',
     `
     #include <color_fragment>
@@ -197,15 +204,102 @@ sand.onBeforeCompile = (shader) => {
     float grain = sin(p.x * 117.0 + p.y * 83.0) * sin(p.y * 109.0 - p.x * 71.0);
     float grainMask = 1.0 - smoothstep(0.35, 1.9, max(fwidth(p.x), fwidth(p.y)) * 100.0);
     diffuseColor.rgb *= 0.91 + 0.075 * ripple + 0.10 * variation + 0.038 * grain * grainMask;
-    diffuseColor.a *= 1.0 - smoothstep(5.4, 16.0, length(p));
+    `,
+  ).replace(
+    '#include <opaque_fragment>',
+    `
+    float distanceBlend = smoothstep(4.3, 15.0, length(vSandPosition));
+    vec3 distantSand = texture2D(sandPanorama, equirectUv(normalize(vSandDirection))).rgb;
+    outgoingLight = mix(outgoingLight, distantSand * sandBackdropIntensity, distanceBlend);
+    #include <opaque_fragment>
     `,
   );
 };
-const sandFloor = new THREE.Mesh(new THREE.PlaneGeometry(34, 34), sand);
+const sandGeometry = new THREE.PlaneGeometry(34, 34, 232, 232);
+const sandPositions = sandGeometry.getAttribute('position');
+for (let i = 0; i < sandPositions.count; i++) {
+  const x = sandPositions.getX(i);
+  const y = sandPositions.getY(i);
+  const radius = Math.hypot(x, y);
+  const outsidePlatform = THREE.MathUtils.smoothstep(radius, platformRadius + 0.12, 3.7);
+  const landscapeFade = 1 - THREE.MathUtils.smoothstep(radius, 5.5, 13);
+  const phase = y * 4.6 + x * 1.8 + 1.9 * Math.sin(x * 0.8 + y * 0.35);
+  const ridge = Math.pow(0.5 + 0.5 * Math.sin(phase + 0.25 * Math.sin(phase)), 2);
+  const dune = 0.5 + 0.5 * Math.sin(y * 1.24 - x * 0.56 + Math.sin(x * 1.1));
+  const height = (0.16 * ridge + 0.11 * dune) * outsidePlatform * landscapeFade;
+  sandPositions.setZ(i, height);
+}
+sandGeometry.computeVertexNormals();
+const sandFloor = new THREE.Mesh(sandGeometry, sand);
 sandFloor.rotation.x = -Math.PI / 2;
 sandFloor.position.y = platformTop - platformDepth - 0.002;
 sandFloor.receiveShadow = true;
 display.add(sandFloor);
+
+const dustGeometry = new THREE.BufferGeometry();
+const dustDensity = document.querySelector('#dust-density');
+const dustPositions = new Float32Array(Number(dustDensity.max) * 3);
+for (let i = 0; i < dustPositions.length; i += 3) {
+  dustPositions[i] = Math.random() * 18;
+  dustPositions[i + 1] = Math.pow(Math.random(), 2) * 1.85;
+  dustPositions[i + 2] = Math.random() * 13 - 6.5;
+}
+dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+const windTime = { value: 0 };
+const dust = new THREE.Points(dustGeometry, new THREE.ShaderMaterial({
+  uniforms: { windTime, pixelRatio: { value: renderer.getPixelRatio() } },
+  transparent: true,
+  depthWrite: false,
+  vertexShader: `
+    uniform float windTime;
+    uniform float pixelRatio;
+    varying float vOpacity;
+    varying float vSwirl;
+    void main() {
+      float seed = fract(sin(dot(position.xz, vec2(12.9898, 78.233))) * 43758.54);
+      float gust = sin(windTime * 0.72 + position.z * 0.45);
+      float x = mod(position.x + windTime * mix(0.68, 1.24, seed) + gust * 0.36, 18.0) - 9.0;
+      float y = position.y + 0.10 * sin(x * 1.4 + windTime + seed * 6.28);
+      vec3 drift = vec3(x, y, position.z + 0.30 * sin(x * 0.7 + seed * 5.0));
+      float cycle = mod(windTime + 1.0, 6.5);
+      float swirlStrength = smoothstep(0.25, 1.1, cycle) * (1.0 - smoothstep(2.65, 3.75, cycle));
+      vSwirl = step(0.57, seed);
+      float opacity = (1.0 - smoothstep(6.0, 9.0, abs(x)))
+        * mix(0.40, 0.92, seed) * (0.76 + 0.24 * gust);
+      if (vSwirl > 0.5) {
+        float strand = fract(position.x / 18.0);
+        float angle = -cycle * 2.35 + strand * 4.4 + position.z * 0.085;
+        float radius = 1.26 + seed * 0.70 + 0.13 * sin(angle * 2.0 + position.z);
+        float height = 0.19 + strand * 1.05 + 0.17 * position.y;
+        drift = vec3(cos(angle) * radius, height, sin(angle) * radius);
+        opacity = swirlStrength * smoothstep(0.0, 0.2, strand)
+          * (1.0 - smoothstep(0.83, 1.0, strand)) * mix(0.33, 0.95, fract(seed * 29.0));
+      }
+      vec4 view = modelViewMatrix * vec4(drift, 1.0);
+      vOpacity = opacity * smoothstep(1.3, 2.5, -view.z);
+      gl_PointSize = clamp(mix(25.0, 20.0, vSwirl) / max(-view.z, 1.0), 1.9, 7.5) * pixelRatio;
+      gl_Position = projectionMatrix * view;
+    }
+  `,
+  fragmentShader: `
+    varying float vOpacity;
+    varying float vSwirl;
+    void main() {
+      vec2 grain = (gl_PointCoord - 0.5) * mix(vec2(2.0, 3.55), vec2(2.25, 2.55), vSwirl);
+      float edge = 1.0 - smoothstep(0.18, 1.0, length(grain));
+      gl_FragColor = vec4(1.55, 1.02, 0.52, edge * vOpacity);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }
+  `,
+}));
+dust.position.y = sandFloor.position.y + 0.24;
+dust.rotation.y = Math.PI / 2;
+dust.frustumCulled = false;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+dust.visible = !reducedMotion.matches;
+reducedMotion.addEventListener('change', (event) => { dust.visible = !event.matches; });
+display.add(dust);
 
 const shadowCanvas = document.createElement('canvas');
 shadowCanvas.width = shadowCanvas.height = 128;
@@ -226,12 +320,12 @@ contactShadow.rotation.x = -Math.PI / 2;
 contactShadow.position.y = platformTop + 0.001;
 display.add(contactShadow);
 
-function bindSlider(id, apply) {
+function bindSlider(id, apply, format = (value) => value.toFixed(2).replace('.', ',')) {
   const input = document.getElementById(id);
   const output = document.querySelector('output[for="' + id + '"]');
   function update() {
     apply(input.valueAsNumber);
-    output.value = input.valueAsNumber.toFixed(2).replace('.', ',');
+    output.value = format(input.valueAsNumber);
   }
   input.addEventListener('input', update);
   update();
@@ -242,6 +336,7 @@ bindSlider('reflection', (value) => { scene.environmentIntensity = value; });
 bindSlider('roughness', (value) => { obsidian.roughness = value; });
 let swordSpeed = 1;
 bindSlider('sword-speed', (value) => { swordSpeed = value; });
+bindSlider('dust-density', (value) => { dustGeometry.setDrawRange(0, value); }, String);
 
 const settingsToggle = document.querySelector('#settings-toggle');
 const settingsPanel = document.querySelector('#settings-panel');
@@ -263,11 +358,12 @@ async function loadEnvironment() {
   );
   texture.mapping = THREE.EquirectangularReflectionMapping;
   texture.wrapS = THREE.RepeatWrapping;
+  panorama.value = texture;
   scene.environment = texture;
 
   // Sample the HDR directly for the backdrop at its original resolution.
   const sky = new THREE.Mesh(new THREE.SphereGeometry(25, 32, 16), new THREE.ShaderMaterial({
-    uniforms: { panorama: { value: texture } },
+    uniforms: { panorama, backdropIntensity: { value: backdropIntensity } },
     side: THREE.BackSide,
     depthWrite: false,
     vertexShader: `
@@ -280,10 +376,11 @@ async function loadEnvironment() {
     fragmentShader: `
       #include <common>
       uniform sampler2D panorama;
+      uniform float backdropIntensity;
       varying vec3 vSkyDirection;
       void main() {
         vec2 uv = equirectUv(normalize(vSkyDirection));
-        gl_FragColor = vec4(texture2D(panorama, uv).rgb * 0.38, 1.0);
+        gl_FragColor = vec4(texture2D(panorama, uv).rgb * backdropIntensity, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }
@@ -410,6 +507,7 @@ Promise.allSettled([loadPerfume(), loadEnvironment(), loadSword()]).then(([perfu
 let previousFrame;
 let seconds = 0;
 renderer.setAnimationLoop((time) => {
+  windTime.value = time / 1000;
   const delta = Math.min((time - (previousFrame ?? time)) / 1000, 0.1);
   previousFrame = time;
   seconds += delta * swordSpeed;

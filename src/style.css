@@ -160,6 +160,7 @@ button:hover { background: #533722; }
 
   .settings-header { grid-column: 1 / -1; }
   .setting { font-size: 0.85rem; }
+  .dust-density { grid-column: 1 / -1; }
 }
 
 @media (min-width: 560px) and (max-width: 850px) {
@@ -202,6 +203,7 @@ button:hover { background: #533722; }
   }
 
   .settings-header button { grid-column: 2; }
+  .dust-density { grid-column: auto; }
   .setting { margin-top: 0; }
   .sword-speed {
     grid-column: 1 / -1;
