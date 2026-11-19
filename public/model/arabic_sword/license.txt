@@ -1,0 +1,11 @@
+Model Information:
+* title:	Arabic sword
+* source:	https://sketchfab.com/3d-models/arabic-sword-7c81e1ac5a55446cafa39b3c628361db
+* author:	ksa2030 (https://sketchfab.com/ksa2030)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Arabic sword" (https://sketchfab.com/3d-models/arabic-sword-7c81e1ac5a55446cafa39b3c628361db) by ksa2030 (https://sketchfab.com/ksa2030) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

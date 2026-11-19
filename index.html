@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parfumatelier</title>
+  </head>
+  <body>
+    <main id="viewport">
+      <header class="heading">
+        <h1>Parfumatelier</h1>
+        <p>Sleep om te draaien · Scroll of knijp om te zoomen</p>
+      </header>
+      <p id="status" role="status">De scène wordt geladen…</p>
+      <section class="settings" aria-labelledby="settings-title">
+        <div class="settings-header">
+          <h2 id="settings-title">Scène</h2>
+          <button id="reset" type="button">Reset camera</button>
+          <div class="setting sword-speed">
+            <label for="sword-speed">Zwaardsnelheid</label><output for="sword-speed"></output>
+            <input id="sword-speed" type="range" min="0" max="2.5" step="0.1" value="1" />
+          </div>
+        </div>
+        <div class="setting">
+          <label for="light">Hoofdlicht</label><output for="light"></output>
+          <input id="light" type="range" min="0" max="5" step="0.05" value="5" />
+        </div>
+        <div class="setting">
+          <label for="reflection">Omgevingsreflectie</label><output for="reflection"></output>
+          <input id="reflection" type="range" min="0" max="2" step="0.05" value="0" />
+        </div>
+        <div class="setting">
+          <label for="roughness">Ruwheid stand</label><output for="roughness"></output>
+          <input id="roughness" type="range" min="0.08" max="1" step="0.01" value="0.08" />
+        </div>
+        <div class="setting material-setting">
+          <span id="material-label">Parfumtextuur</span>
+          <div class="swatches" role="group" aria-labelledby="material-label">
+            <button type="button" data-material="original" aria-label="Origineel" title="Origineel" aria-pressed="true" disabled>O</button>
+            <button type="button" data-material="obsidian" aria-label="Obsidiaan" title="Obsidiaan" aria-pressed="false" disabled></button>
+            <button type="button" data-material="gold" aria-label="Goud" title="Goud" aria-pressed="false" disabled></button>
+            <button type="button" data-material="silver" aria-label="Zilver" title="Zilver" aria-pressed="false" disabled></button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
