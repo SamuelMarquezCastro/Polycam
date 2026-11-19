@@ -410,6 +410,64 @@ function groupPerfumeSurfaces(geometry) {
   geometry.addGroup(label.length, accents.length, 1);
 }
 
+function applyPerfumeLabel(material) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1024;
+  const context = canvas.getContext('2d');
+  context.textAlign = 'center';
+  const foil = context.createLinearGradient(200, 180, 825, 850);
+  foil.addColorStop(0, '#eec88a');
+  foil.addColorStop(0.47, '#c38f55');
+  foil.addColorStop(1, '#efc184');
+  context.fillStyle = foil;
+  for (const [text, font, baseline, width] of [
+    ['FARIS AL ARAB', 'bold 133px "Times New Roman"', 345, 852],
+    ['MAISON', '86px Georgia', 663, 545],
+    ['ASRAR', 'bold 45px Arial', 728, 320],
+    ['EAU DE PARFUM', '48px Arial', 857, 580],
+    ['℮ 100 ML 3.38 FL.OZ', '43px Arial', 915, 590],
+  ]) {
+    context.font = font;
+    context.fillText(text, 512, baseline, width);
+  }
+
+  const lettering = new THREE.CanvasTexture(canvas);
+  lettering.colorSpace = THREE.SRGBColorSpace;
+  lettering.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.labelLettering = { value: lettering };
+    shader.uniforms.labelStone = { value: obsidian.map };
+    shader.vertexShader = 'varying vec3 vBottlePosition;\n' + shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nvBottlePosition = position;',
+    );
+    shader.fragmentShader = `
+      varying vec3 vBottlePosition;
+      uniform sampler2D labelLettering;
+      uniform sampler2D labelStone;
+    ` + shader.fragmentShader.replace(
+      '#include <map_fragment>',
+      `
+      #include <map_fragment>
+      vec2 labelUv = (vBottlePosition.xy - vec2(-0.222, -0.487)) / vec2(0.444, 0.371);
+      vec2 edge = min(labelUv, 1.0 - labelUv);
+      float labelCoverage = smoothstep(0.0, 0.07, min(edge.x, edge.y))
+        * smoothstep(0.218, 0.233, vBottlePosition.z);
+      vec4 foilInk = texture2D(labelLettering, labelUv);
+      vec3 stoneFace = texture2D(labelStone, labelUv).rgb * 0.56;
+      vec3 restoredLabel = mix(stoneFace, foilInk.rgb, foilInk.a);
+      diffuseColor.rgb = mix(diffuseColor.rgb, restoredLabel, labelCoverage);
+      `,
+    ).replace(
+      '#include <emissivemap_fragment>',
+      `
+      #include <emissivemap_fragment>
+      totalEmissiveRadiance = mix(totalEmissiveRadiance, restoredLabel * 0.42, labelCoverage);
+      `,
+    );
+  };
+}
+
 async function loadPerfume() {
   const { scene: perfume } = await new GLTFLoader().loadAsync(asset('model/parfum.glb'));
   const bounds = new THREE.Box3().setFromObject(perfume);
@@ -453,6 +511,7 @@ async function loadPerfume() {
       object.material.emissive.setHex(0xffffff);
       object.material.emissiveMap = object.material.map;
       object.material.emissiveIntensity = 0.42;
+      applyPerfumeLabel(object.material);
       originalMaterials.set(object, object.material);
       groupPerfumeSurfaces(object.geometry);
       object.material = [object.material, object.material];
